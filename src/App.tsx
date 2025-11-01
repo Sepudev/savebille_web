@@ -7,11 +7,11 @@ import {
 } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
-import Dashboard from "@/pages/Dashboard";
-import Auth from "@/pages/Auth";
-import Categories from "@/pages/Categories";
-import Transactions from "@/pages/Transactions";
-import Layout from "@/components/Layout";
+import { Dashboard } from "@/pages/Dashboard";
+import { Auth } from "@/pages/Auth";
+import { Categories } from "@/pages/Categories";
+import { Transactions } from "@/pages/Transactions";
+import { Layout } from "@/components/Layout";
 import { Spinner } from "@/components/ui/spinner";
 import "./App.css";
 

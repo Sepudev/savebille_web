@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Card,
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Eye, EyeSlash } from "@phosphor-icons/react";
 
-export default function Auth() {
+export const Auth: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -140,4 +140,4 @@ export default function Auth() {
       </Card>
     </div>
   );
-}
+};

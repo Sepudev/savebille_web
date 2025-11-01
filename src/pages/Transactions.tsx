@@ -1,111 +1,54 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import type { Transaction } from "@/types";
-import { Trash, MagnifyingGlass, Funnel, X } from "@phosphor-icons/react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { TransactionDetailModal } from "@/components/transactions/TransactionDetailModal";
+import { TransactionsSkeleton } from "@/components/transactions/TransactionsSkeleton";
+import { renderIcon } from "@/utils/general/iconRenderer";
+import {
+  TrashIcon,
+  MagnifyingGlassIcon,
+  XIcon,
+  ListDashesIcon,
+} from "@phosphor-icons/react";
+import { useTransactions } from "@/hooks/transactions/useTransactions";
 
-export default function Transactions() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [filteredTransactions, setFilteredTransactions] = useState<
-    Transaction[]
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "income" | "expense">(
-    "all"
-  );
+export const Transactions: React.FC = () => {
+  const {
+    filteredTransactions,
+    loading,
+    deleting,
+    searchQuery,
+    setSearchQuery,
+    filterType,
+    setFilterType,
+    selectedTransaction,
+    detailModalOpen,
+    setDetailModalOpen,
+    deleteDialogOpen,
+    setDeleteDialogOpen,
+    transactionToDelete,
+    setTransactionToDelete,
+    formatCOP,
+    groupTransactionsByDate,
+    fetchTransactions,
+    deleteTransaction,
+    openDeleteDialog,
+    openDetailModal,
+  } = useTransactions();
 
-  const formatCOP = (amount: number) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
-
-  useEffect(() => {
-    filterTransactions();
-  }, [searchQuery, filterType, transactions]);
-
-  const fetchTransactions = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      const { data: transactionsData, error } = await supabase
-        .from("transactions")
-        .select("*, categories(name, icon, color)")
-        .eq("user_id", user.id)
-        .order("date", { ascending: false });
-
-      if (error) throw error;
-      setTransactions(transactionsData || []);
-    } catch (error) {
-      console.error("Error fetching transactions:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filterTransactions = () => {
-    let filtered = transactions;
-
-    if (filterType !== "all") {
-      filtered = filtered.filter((t) => t.type === filterType);
-    }
-
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (t) =>
-          t.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          t.categories?.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    setFilteredTransactions(filtered);
-  };
-
-  const deleteTransaction = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar esta transacción?")) return;
-
-    try {
-      setDeleting(id);
-      const { error } = await supabase
-        .from("transactions")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setTransactions(transactions.filter((t) => t.id !== id));
-    } catch (error) {
-      console.error("Error deleting transaction:", error);
-      alert("Error al eliminar la transacción");
-    } finally {
-      setDeleting(null);
-    }
-  };
+  const groupedTransactions = groupTransactionsByDate(filteredTransactions);
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background gap-4">
-        <Spinner size="lg" />
-        <p className="text-sm text-muted-foreground">
-          Cargando transacciones...
-        </p>
-      </div>
-    );
+    return <TransactionsSkeleton />;
   }
 
   return (
@@ -121,7 +64,7 @@ export default function Transactions() {
 
       <div className="mb-6 flex flex-col sm:flex-row gap-3">
         <div className="flex-1 relative">
-          <MagnifyingGlass
+          <MagnifyingGlassIcon
             className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             weight="bold"
           />
@@ -136,7 +79,7 @@ export default function Transactions() {
               onClick={() => setSearchQuery("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
-              <X className="h-4 w-4" />
+              <XIcon className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -180,7 +123,7 @@ export default function Transactions() {
       {filteredTransactions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-            <MagnifyingGlass
+            <MagnifyingGlassIcon
               className="h-8 w-8 text-muted-foreground"
               weight="bold"
             />
@@ -193,70 +136,168 @@ export default function Transactions() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filteredTransactions.map((transaction) => (
-            <div
-              key={transaction.id}
-              className="group flex items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/30 hover:bg-accent/30 transition-colors duration-200"
-            >
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0 shadow-sm"
-                style={{
-                  backgroundColor: transaction.categories?.color + "40",
-                }}
-              >
-                {transaction.categories?.icon}
-              </div>
+        <div className="space-y-6">
+          {Object.entries(groupedTransactions).map(([date, transactions]) => (
+            <div key={date}>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3 capitalize">
+                {date}
+              </h3>
+              <div className="space-y-2">
+                {transactions.map((transaction) => (
+                  <div
+                    key={transaction.id}
+                    className="group flex items-center gap-4 p-4 rounded-xl border border-border transition-colors duration-200"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0 shadow-sm"
+                      style={{
+                        backgroundColor: transaction.categories?.color + "40",
+                      }}
+                    >
+                      {renderIcon(transaction.categories?.icon || "question")}
+                    </div>
 
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {transaction.description || "Sin descripción"}
-                </p>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                  <span className="truncate">
-                    {transaction.categories?.name}
-                  </span>
-                  <span>•</span>
-                  <span className="whitespace-nowrap">
-                    {new Date(transaction.date).toLocaleDateString("es-CO", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </span>
-                </div>
-              </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {transaction.description || "Sin descripción"}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                        <span className="truncate">
+                          {transaction.categories?.name}
+                        </span>
+                        <span>•</span>
+                        <span className="whitespace-nowrap">
+                          {new Date(
+                            transaction.date + "T00:00:00"
+                          ).toLocaleDateString("es-CO", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    </div>
 
-              <div className="flex items-center gap-3">
-                <div
-                  className={`text-base font-bold whitespace-nowrap ${
-                    transaction.type === "income"
-                      ? "text-secondary"
-                      : "text-red-400"
-                  }`}
-                >
-                  {transaction.type === "income" ? "+" : "-"}
-                  {formatCOP(Number(transaction.amount))}
-                </div>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`text-base font-bold whitespace-nowrap ${
+                          transaction.type === "income"
+                            ? "text-primary"
+                            : "text-secondary"
+                        }`}
+                      >
+                        {transaction.type === "expense" && "-"}
+                        {formatCOP(Number(transaction.amount))}
+                      </div>
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => deleteTransaction(transaction.id)}
-                  disabled={deleting === transaction.id}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 text-muted-foreground hover:text-red-400 hover:bg-red-400/10"
-                >
-                  {deleting === transaction.id ? (
-                    <Spinner size="sm" />
-                  ) : (
-                    <Trash className="h-4 w-4" weight="bold" />
-                  )}
-                </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openDetailModal(transaction)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                        title="Ver información completa"
+                      >
+                        <ListDashesIcon className="h-4 w-4" weight="bold" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openDeleteDialog(transaction)}
+                        disabled={deleting === transaction.id}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400 hover:bg-red-400/10"
+                        title="Eliminar"
+                      >
+                        {deleting === transaction.id ? (
+                          <Spinner size="sm" />
+                        ) : (
+                          <TrashIcon className="h-4 w-4" weight="bold" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <TransactionDetailModal
+        transaction={selectedTransaction}
+        open={detailModalOpen}
+        onOpenChange={setDetailModalOpen}
+        onUpdate={fetchTransactions}
+      />
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Eliminar transacción?</DialogTitle>
+            <DialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente la
+              transacción.
+            </DialogDescription>
+          </DialogHeader>
+
+          {transactionToDelete && (
+            <div className="py-4">
+              <div className="flex items-center gap-3 p-4 rounded-lg border">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center text-lg"
+                  style={{
+                    backgroundColor:
+                      transactionToDelete.categories?.color + "40",
+                  }}
+                >
+                  {renderIcon(
+                    transactionToDelete.categories?.icon || "question"
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {transactionToDelete.description || "Sin descripción"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {transactionToDelete.categories?.name}
+                  </p>
+                </div>
+                <p
+                  className={`text-lg font-bold ${
+                    transactionToDelete.type === "income"
+                      ? "text-secondary"
+                      : "text-red-400"
+                  }`}
+                >
+                  {formatCOP(Number(transactionToDelete.amount))}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setTransactionToDelete(null);
+              }}
+              disabled={deleting !== null}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() =>
+                transactionToDelete && deleteTransaction(transactionToDelete.id)
+              }
+              disabled={deleting !== null}
+            >
+              {deleting ? <Spinner size="sm" /> : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
+};
